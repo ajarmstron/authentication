@@ -38,7 +38,8 @@ mongoose.set("useCreateIndex", true);
 const userSchema = new mongoose.Schema({
   email: String,
   password: String,
-  googleId: String
+  googleId: String,
+  secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -59,7 +60,6 @@ passport.deserializeUser(function(id, done) {
     done(err, user);
   });
 });
-
 
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
@@ -101,16 +101,47 @@ app.get("/register", function(req,res){
 });
 
 app.get("/secrets", function(req, res){
-    if (req.isAuthenticated()){
-      res.render("secrets");
+  User.find({"secret": {$ne: null}}, function(err, foundUsers){
+    if (err){
+      console.log(err);
     } else {
-      res.redirect("/login");
+      if (foundUsers) {
+        res.render("secrets", {usersWithSecrets: foundUsers});
+      }
     }
+  });
 });
 
 app.get("/logout", function(req, res){
   req.logout();
   res.redirect("/");
+});
+
+app.get("/submit", function(req, res){
+  if (req.isAuthenticated()){
+    res.render("submit");
+  } else {
+    res.redirect("/login");
+  }
+});
+
+app.get("/post", function(req, res){
+    const submittedSecret = req.body.secret;
+    console.log(req.user.id);
+    User.findById(req.user.id, function(err, foundUser){
+      if (err) {
+        console.log(err);
+      }
+      else {
+        if (foundUser){
+          foundUser.secret = submittedSecret;
+          foundUser.save(function(){
+            res.redirect("/secrets");
+          });
+
+        }
+      }
+    });
 });
 
 app.post("/register", function(req, res){
@@ -140,6 +171,26 @@ app.post("/login", function(req, res){
     passport.authenticate("local")(req, res, function(){
     res.redirect("/secrets");
     });
+    }
+  });
+});
+
+app.post("/submit", function(req, res){
+  const submittedSecret = req.body.secret;
+
+//Once the user is authenticated and their session gets saved, their user details are saved to req.user.
+  //console.log(req.user.id);
+
+  User.findById(req.user.id, function(err, foundUser){
+    if (err) {
+      console.log(err);
+    } else {
+      if (foundUser) {
+        foundUser.secret = submittedSecret;
+        foundUser.save(function(){
+          res.redirect("/secrets");
+        });
+      }
     }
   });
 });
